@@ -1,0 +1,4 @@
+name = "reminder-bot"
+main = "src/index.py"
+compatibility_date = "2024-03-07"
+compatibility_flags = ["python_workers"]

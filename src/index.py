@@ -26,7 +26,7 @@ async def check_reminders(env):
             # 【關鍵修復】將資料庫讀出來的 JS 物件 (JsProxy) 翻譯成 Python 字典
             row = item.to_py() if hasattr(item, 'to_py') else item
             
-            msg = f"⏰ **時間到啦！老闆請注意：**\n\n{row['message']}"
+            msg = f"⏰ **何生您好！**\n您指令任務時間到啦，請注意：\n{row['message']}"
             await send_message(env.TELEGRAM_TOKEN, row['chat_id'], msg)
             # 標記為已發送
             await db.prepare("UPDATE reminders SET is_sent = 1 WHERE id = ?").bind(row['id']).run()
@@ -68,7 +68,7 @@ async def on_fetch(request, env):
                         str(chat_id), message, remind_time
                     ).run()
                     
-                    await send_message(env.TELEGRAM_TOKEN, chat_id, f"✅ 任務已記錄入庫！\n我會在 {date} {time} 準時提醒你：\n「{message}」")
+                    await send_message(env.TELEGRAM_TOKEN, chat_id, f"✅ 收到！何生，您下達任務已記錄入庫！\n我會在 {date} {time} 準時提醒您：\n「{message}」")
                 else:
                     await send_message(env.TELEGRAM_TOKEN, chat_id, "❌ 格式錯誤！請使用格式：\n/add YYYY-MM-DD HH:MM 填寫你的任務內容")
             elif text == "/start" or text == "/help":
@@ -82,3 +82,4 @@ async def on_fetch(request, env):
 # 給 Cloudflare 自動定時器 (Cron) 用的專屬通道
 async def on_scheduled(event, env):
     await check_reminders(env)
+

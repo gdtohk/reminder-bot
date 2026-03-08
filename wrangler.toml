@@ -7,3 +7,5 @@ compatibility_flags = ["python_workers"]
 binding = "DB"
 database_name = "reminder_db"
 database_id = "9906564a-48d8-4984-9576-086bf3ef467c"
+[triggers]
+crons = ["* * * * *"]

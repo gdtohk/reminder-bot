@@ -34,22 +34,24 @@ async def check_reminders(env):
 async def on_fetch(request, env):
     url = request.url
     
-    # 1. 綁定耳朵 (Webhook)：告訴 Telegram 只要有人說話，就把訊息送到這裡
+    # 1. 綁定耳朵 (Webhook)
     if url.endswith("/setup"):
         webhook_url = url.replace("/setup", "/webhook")
         tg_url = f"https://api.telegram.org/bot{env.TELEGRAM_TOKEN}/setWebhook?url={webhook_url}"
         res = await pyfetch(tg_url)
-        data = await res.json()
-        return Response.new(f"綁定結果：{json.dumps(data)}")
+        data_text = await res.text() # 修復：改用純文字讀取避免 JS 物件衝突
+        return Response.new(f"綁定結果：{data_text}")
 
-    # 2. 手動時鐘：讓你隨時可以手動測試檢查任務
+    # 2. 手動時鐘
     if url.endswith("/check"):
         count = await check_reminders(env)
         return Response.new(f"檢查完畢！現在時間，共發送了 {count} 條提醒。")
 
-    # 3. 接收指令：處理你在 Telegram 發送的訊息
+    # 3. 接收指令
     if url.endswith("/webhook") and request.method == "POST":
-        body = await request.json()
+        # 【關鍵修復】先讀取為純文字，再翻譯成純統的 Python 字典
+        body_text = await request.text()
+        body = json.loads(body_text)
         
         if "message" in body and "text" in body["message"]:
             chat_id = body["message"]["chat"]["id"]
@@ -71,7 +73,7 @@ async def on_fetch(request, env):
                     
                     await send_message(env.TELEGRAM_TOKEN, chat_id, f"✅ 任務已記錄入庫！\n我會在 {date} {time} 準時提醒你：\n「{message}」")
                 else:
-                    await send_message(env.TELEGRAM_TOKEN, chat_id, "❌ 格式錯誤！請使用格式：\n/add 2026-03-08 15:00 填寫你的任務內容")
+                    await send_message(env.TELEGRAM_TOKEN, chat_id, "❌ 格式錯誤！請使用格式：\n/add YYYY-MM-DD HH:MM 填寫你的任務內容")
             elif text == "/start" or text == "/help":
                 help_msg = "老闆好！我是你的專屬提醒機器人🤖\n\n👉 **如何新增提醒？**\n請傳送以下格式的訊息：\n/add YYYY-MM-DD HH:MM 你的任務內容\n\n📝 **範例**：\n/add 2026-03-08 15:30 記得提交鋼筋圖紙\n\n(注意：時間請使用香港時間，24小時制)"
                 await send_message(env.TELEGRAM_TOKEN, chat_id, help_msg)

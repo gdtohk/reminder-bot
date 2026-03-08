@@ -2,3 +2,8 @@ name = "reminder-bot"
 main = "src/index.py"
 compatibility_date = "2024-03-07"
 compatibility_flags = ["python_workers"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "reminder_db"
+database_id = "9906564a-48d8-4984-9576-086bf3ef467c"

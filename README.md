@@ -33,6 +33,7 @@
 3. 建立完成後，**複製畫面上的「資料庫 ID (Database ID)」** 備用。
 4. 點擊進入剛建好的 `reminder_db`，切換到 **「控制台 (Console)」** 標籤。
 5. 貼上以下 SQL 語法並點擊「執行」，建立記憶表格：
+
 ```sql
 CREATE TABLE reminders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,14 +42,7 @@ CREATE TABLE reminders (
     remind_time DATETIME NOT NULL,
     is_sent INTEGER DEFAULT 0
 );
-CREATE TABLE reminders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chat_id TEXT NOT NULL,
-    message TEXT NOT NULL,
-    remind_time DATETIME NOT NULL,
-    is_sent INTEGER DEFAULT 0
-);
-```  <-- ❗️ 就是要在這裡補上這三個反引號 ( ``` )
+```
 ### 第 5 步：綁定資料庫與啟動部署
 1. 回到你的 GitHub 倉庫，打開 `wrangler.toml` 檔案，點擊編輯。
 2. 將最下方的 `database_id = "..."` 替換成你在第 4 步複製的 **資料庫 ID**。
@@ -82,4 +76,3 @@ CREATE TABLE reminders (
 * `/add 2026-03-09 09:00 提醒 QS 開會`
 
 只要發送成功，機器人會回覆「✅ 任務已記錄入庫！」。接著你什麼都不用管，只要時間一到，機器人就會透過 Cloudflare 的定時器全自動發送提醒給你！
-

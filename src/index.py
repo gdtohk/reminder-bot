@@ -22,7 +22,10 @@ async def check_reminders(env):
     
     count = 0
     if result.results:
-        for row in result.results:
+        for item in result.results:
+            # 【關鍵修復】將資料庫讀出來的 JS 物件 (JsProxy) 翻譯成 Python 字典
+            row = item.to_py() if hasattr(item, 'to_py') else item
+            
             msg = f"⏰ **時間到啦！老闆請注意：**\n\n{row['message']}"
             await send_message(env.TELEGRAM_TOKEN, row['chat_id'], msg)
             # 標記為已發送
@@ -34,22 +37,18 @@ async def check_reminders(env):
 async def on_fetch(request, env):
     url = request.url
     
-    # 1. 綁定耳朵 (Webhook)
     if url.endswith("/setup"):
         webhook_url = url.replace("/setup", "/webhook")
         tg_url = f"https://api.telegram.org/bot{env.TELEGRAM_TOKEN}/setWebhook?url={webhook_url}"
         res = await pyfetch(tg_url)
-        data_text = await res.text() # 修復：改用純文字讀取避免 JS 物件衝突
+        data_text = await res.text()
         return Response.new(f"綁定結果：{data_text}")
 
-    # 2. 手動時鐘
     if url.endswith("/check"):
         count = await check_reminders(env)
         return Response.new(f"檢查完畢！現在時間，共發送了 {count} 條提醒。")
 
-    # 3. 接收指令
     if url.endswith("/webhook") and request.method == "POST":
-        # 【關鍵修復】先讀取為純文字，再翻譯成純統的 Python 字典
         body_text = await request.text()
         body = json.loads(body_text)
         
@@ -57,7 +56,6 @@ async def on_fetch(request, env):
             chat_id = body["message"]["chat"]["id"]
             text = body["message"]["text"]
             
-            # 解析你設定的提醒任務
             if text.startswith("/add "):
                 parts = text.split(" ", 3)
                 if len(parts) >= 4:
@@ -66,7 +64,6 @@ async def on_fetch(request, env):
                     message = parts[3]
                     remind_time = f"{date} {time}:00"
                     
-                    # 存入大腦 (D1 資料庫)
                     await env.DB.prepare("INSERT INTO reminders (chat_id, message, remind_time) VALUES (?, ?, ?)").bind(
                         str(chat_id), message, remind_time
                     ).run()

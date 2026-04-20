@@ -98,6 +98,6 @@ async def on_scheduled(event, env):
         await check_reminders(env)
         
     # 任務 2：每天香港時間 07:30 報天氣 (UTC 23:30)
-    elif event.cron == "30 23 * * *":
+    elif event.cron == "51 07 * * *":
         weather_text = await get_hk_weather()
         await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, weather_text)

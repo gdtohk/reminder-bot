@@ -6,13 +6,16 @@ import datetime
 # --- 【通用函數：發送訊息】 ---
 async def send_message(token, chat_id, text):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({"chat_id": chat_id, "text": text})
+    payload = json.dumps({
+        "chat_id": chat_id, 
+        "text": text,
+        "parse_mode": "Markdown" # 讓訊息支援加粗等格式
+    })
     await pyfetch(url, method="POST", headers={"Content-Type": "application/json"}, body=payload)
 
 # --- 【技能 1：天氣預報 (Weather Skill)】 ---
 async def get_hk_weather():
     """獲取香港天文台今日天氣概況"""
-    # 使用香港天文台 API (繁體中文)
     url = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=flw&lang=tc"
     try:
         res = await pyfetch(url)
@@ -25,6 +28,7 @@ async def get_hk_weather():
 # --- 【技能 2：定時提醒檢查 (Reminder Skill)】 ---
 async def check_reminders(env):
     db = env.DB
+    # 獲取香港時間 (UTC+8)
     now_hk = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
     current_time_str = now_hk.strftime("%Y-%m-%d %H:%M:00")
     
@@ -35,8 +39,9 @@ async def check_reminders(env):
     if result.results:
         for item in result.results:
             row = item.to_py() if hasattr(item, 'to_py') else item
-            msg = f"⏰ **何生您好！**\n您指令任務時間到啦，請注意：\n{row['message']}"
-            await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, msg) # 使用全域 ID 確保推送到位
+            msg = f"⏰ **何生您好！**\n您下達的任務時間到啦：\n\n> {row['message']}"
+            # 這裡發送給 env.TELEGRAM_CHAT_ID 確保你自己能收到
+            await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, msg)
             await db.prepare("UPDATE reminders SET is_sent = 1 WHERE id = ?").bind(row['id']).run()
             count += 1
     return count
@@ -45,7 +50,7 @@ async def check_reminders(env):
 async def on_fetch(request, env):
     url = request.url
     
-    # 綁定 Webhook 用的路徑
+    # 1. 綁定 Webhook
     if url.endswith("/setup"):
         webhook_url = url.replace("/setup", "/webhook")
         tg_url = f"https://api.telegram.org/bot{env.TELEGRAM_TOKEN}/setWebhook?url={webhook_url}"
@@ -53,12 +58,7 @@ async def on_fetch(request, env):
         data_text = await res.text()
         return Response.new(f"綁定結果：{data_text}")
 
-    # 手動觸發檢查 (測試用)
-    if url.endswith("/check"):
-        count = await check_reminders(env)
-        return Response.new(f"檢查完畢！發送了 {count} 條提醒。")
-
-    # 接收 Telegram 訊息
+    # 2. 接收 Telegram 訊息 (Webhook)
     if url.endswith("/webhook") and request.method == "POST":
         body_text = await request.text()
         body = json.loads(body_text)
@@ -67,7 +67,7 @@ async def on_fetch(request, env):
             chat_id = body["message"]["chat"]["id"]
             text = body["message"]["text"]
             
-            # 指令處理：/add
+            # 指令：新增提醒
             if text.startswith("/add "):
                 parts = text.split(" ", 3)
                 if len(parts) >= 4:
@@ -80,9 +80,14 @@ async def on_fetch(request, env):
                 else:
                     await send_message(env.TELEGRAM_TOKEN, chat_id, "❌ 格式：/add YYYY-MM-DD HH:MM 內容")
             
-            # 指令處理：/start 或 /help
+            # --- 新增：手動測試天氣技能 ---
+            elif text == "/weather":
+                weather_text = await get_hk_weather()
+                await send_message(env.TELEGRAM_TOKEN, chat_id, weather_text)
+            
+            # 指令：幫助
             elif text == "/start" or text == "/help":
-                help_msg = "老闆好！我是你的提醒助手🤖\n\n傳送格式：\n/add 2026-03-08 15:30 內容"
+                help_msg = "老闆好！我是你的提醒助手🤖\n\n🔹 **/add** `日期` `時間` `內容` (新增提醒)\n🔹 **/weather** (立即查看香港天氣)"
                 await send_message(env.TELEGRAM_TOKEN, chat_id, help_msg)
                 
         return Response.new("OK")
@@ -91,13 +96,12 @@ async def on_fetch(request, env):
 
 # --- 【主入口：定時觸發器 (Cron Trigger)】 ---
 async def on_scheduled(event, env):
-    # 根據 wrangler.toml 裡的設定來判斷執行的任務
-    
     # 任務 1：每分鐘檢查一次資料庫提醒
     if event.cron == "* * * * *":
         await check_reminders(env)
         
-    # 任務 2：每天香港時間 07:30 報天氣 (UTC 23:30)
-    elif event.cron == "51 07 * * *":
+    # 任務 2：天氣報時 (請確保此處字串與 wrangler.toml 裡的 crons 列表完全一致)
+    else:
+        # 只要不是每分鐘任務，就當作是天氣任務執行 (這樣即使你改了時間也不怕對不上暗號)
         weather_text = await get_hk_weather()
         await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, weather_text)

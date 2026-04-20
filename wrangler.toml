@@ -7,5 +7,7 @@ compatibility_flags = ["python_workers"]
 binding = "DB"
 database_name = "reminder_db"
 database_id = "9906564a-48d8-4984-9576-086bf3ef467c"
+
 [triggers]
-crons = ["* * * * *"]
+# 第一个是原有的每分钟执行一次，第二个是新增的每天 UTC 23:30 (香港时间 07:30) 执行
+crons = ["* * * * *", "30 21 * * *"]

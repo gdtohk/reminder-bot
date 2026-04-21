@@ -44,7 +44,7 @@ async def get_hk_weather_detailed():
         general_sit = data_f.get('generalSituation', '暫無概括')
         
         # --- 組裝訊息 ---
-        msg = f"🌤️ **老闆早晨！天氣全匯報 (v3.1)**\n"
+        msg = f"🌤️ **何生早晨！天氣全匯報 (v3.1)**\n"
         msg += f"━━━━━━━━━━━━━━\n"
         msg += f"🌡️ **當前氣溫**：{curr_temp}°C\n"
         msg += f"💧 **相對濕度**：{curr_hum}%\n"

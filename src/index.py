@@ -13,11 +13,17 @@ async def send_message(token, chat_id, text):
     })
     await pyfetch(url, method="POST", headers={"Content-Type": "application/json"}, body=payload)
 
-# --- 【2. 核心功能：獲取實時及 7 天詳細天氣】 ---
+# --- 【2. 核心功能：獲取實時及 7 天天氣（加入緩存刷新）】 ---
 async def get_hk_weather_detailed():
-    """抓取香港天文台實時氣溫、現行警告及未來 7 天預報"""
-    url_curr = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc"
-    url_fore = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc"
+    """抓取香港天文台最新數據，並透過時間戳確保數據新鮮"""
+    
+    # 【新增】取得目前秒數，作為隨機參數防止 Cloudflare 緩存舊數據
+    t = int(datetime.datetime.now().timestamp())
+    
+    # 接口 A：實時報告
+    url_curr = f"https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc&t={t}"
+    # 接口 B：九天預報
+    url_fore = f"https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc&t={t}"
     
     try:
         # 同時抓取數據
@@ -26,15 +32,19 @@ async def get_hk_weather_detailed():
         res_f = await pyfetch(url_fore)
         data_f = await res_f.json()
         
-        # 實時數據提取
+        # --- 整理實時數據 ---
         curr_temp = data_c['temperature']['data'][0]['value']
         curr_hum = data_c['humidity']['data'][0]['value']
+        
+        # 天氣警告處理
         warnings = data_c.get('warningMessage', [])
         warn_text = " ✅ 目前無生效警告" if not warnings else " ⚠️ " + "、".join(warnings)
+        
+        # 今日綜合概括
         general_sit = data_f.get('generalSituation', '暫無概括')
         
-        # 訊息組裝
-        msg = f"🌤️ **老闆早晨！天氣全匯報**\n"
+        # --- 組裝訊息 ---
+        msg = f"🌤️ **老闆早晨！天氣全匯報 (v3.1)**\n"
         msg += f"━━━━━━━━━━━━━━\n"
         msg += f"🌡️ **當前氣溫**：{curr_temp}°C\n"
         msg += f"💧 **相對濕度**：{curr_hum}%\n"
@@ -92,7 +102,6 @@ async def on_fetch(request, env):
             chat_id = body["message"]["chat"]["id"]
             text = body["message"]["text"]
             
-            # 指令集
             if text.startswith("/add "):
                 parts = text.split(" ", 3)
                 if len(parts) >= 4:
@@ -101,7 +110,7 @@ async def on_fetch(request, env):
                     await env.DB.prepare("INSERT INTO reminders (chat_id, message, remind_time) VALUES (?, ?, ?)").bind(
                         str(chat_id), message, remind_time
                     ).run()
-                    await send_message(env.TELEGRAM_TOKEN, chat_id, f"✅ 已記錄入庫！\n會在 {date} {time_val} 提醒您。")
+                    await send_message(env.TELEGRAM_TOKEN, chat_id, f"✅ 已記錄！會在 {date} {time_val} 提醒您。")
                 else:
                     await send_message(env.TELEGRAM_TOKEN, chat_id, "❌ 格式：/add YYYY-MM-DD HH:MM 內容")
             
@@ -110,31 +119,19 @@ async def on_fetch(request, env):
                 await send_message(env.TELEGRAM_TOKEN, chat_id, weather_text)
             
             elif text == "/test_id":
-                # 偵錯專用：核對你的 ID 是否與後台配置一致
                 await send_message(env.TELEGRAM_TOKEN, chat_id, f"👤 當前對話 ID: `{chat_id}`\n🔑 後台配置 ID: `{env.TELEGRAM_CHAT_ID}`")
             
             elif text == "/start" or text == "/help":
-                help_text = "🤖 **何生專屬助理 3.0**\n\n🔹 `/add` - 新增提醒\n🔹 `/weather` - 詳細天氣預報\n🔹 `/test_id` - ID 偵錯工具"
+                help_text = "🤖 **何生專屬助理 3.1**\n\n🔹 `/add` - 新增提醒\n🔹 `/weather` - 獲取最新天氣預報\n🔹 `/test_id` - ID 偵錯"
                 await send_message(env.TELEGRAM_TOKEN, chat_id, help_text)
                 
         return Response.new("OK")
-
     return Response.new("Running...")
 
 # --- 【5. 定時入口：處理 Cron 定時觸發】 ---
 async def on_scheduled(event, env):
-    # 日誌：這會在 Cloudflare 的 Logs 裡顯示
-    print(f"定時任務觸發！暗號: {event.cron}")
-    
     if event.cron == "* * * * *":
         await check_reminders(env)
     else:
-        # 只要不是每分鐘任務，就執行報時
-        print("正在執行定時天氣預報...")
-        try:
-            weather_text = await get_hk_weather_detailed()
-            # 傳送給後台綁定的固定 ID
-            await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, weather_text)
-            print("天氣預報發送成功！")
-        except Exception as e:
-            print(f"定時發送失敗，錯誤原因: {str(e)}")
+        weather_text = await get_hk_weather_detailed()
+        await send_message(env.TELEGRAM_TOKEN, env.TELEGRAM_CHAT_ID, weather_text)

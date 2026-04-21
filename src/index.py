@@ -1,5 +1,6 @@
 from js import Response
 import json
+from skills.rebar import run_rebar_skill
 from common import send_message
 from skills.weather import run_weather_skill
 from skills.reminder import check_reminders, add_reminder
@@ -31,7 +32,11 @@ async def on_fetch(request, env):
             # 1. 處理帶參數的特殊指令（如 /add）
             if text.startswith("/add "):
                 await add_reminder(env, chat_id, text)
-            
+
+# 👉 新增這一塊：把 /rebar 派發給鋼筋部門
+            elif text.startswith("/rebar "):
+                await run_rebar_skill(env, chat_id, text)            
+
             # 2. 處理路由表裡的普通指令
             elif text in SKILLS_MAP:
                 await SKILLS_MAP[text](env, chat_id)

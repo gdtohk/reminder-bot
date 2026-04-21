@@ -1,16 +1,17 @@
 from js import Response
 import json
-from skills.rebar import run_rebar_skill
 from common import send_message
 from skills.weather import run_weather_skill
 from skills.reminder import check_reminders, add_reminder
+from skills.rebar import run_rebar_skill
+# 👉 新增：把大腦請進辦公室
+from agent import chat_with_llm
 
-# --- 【技能路由表：這是以後快速增加 Skill 的核心】 ---
-# 未來其他人想加 Skill，只需要把指令和函數寫在這裡
+# --- 【技能路由表】 ---
 SKILLS_MAP = {
     "/weather": run_weather_skill,
-    "/start": lambda env, chat_id: send_message(env.TELEGRAM_TOKEN, chat_id, "🤖 助理已就位！\n/weather - 天氣預報\n/add - 新增提醒"),
-    "/help": lambda env, chat_id: send_message(env.TELEGRAM_TOKEN, chat_id, "使用說明：\n/weather 獲取 7 天天氣\n/add 日期 時間 內容")
+    "/start": lambda env, chat_id: send_message(env.TELEGRAM_TOKEN, chat_id, "🤖 助理已升級！\n輸入指令可執行技能，直接打字可與 AI 聊天！"),
+    "/help": lambda env, chat_id: send_message(env.TELEGRAM_TOKEN, chat_id, "使用說明：\n/weather - 天氣\n/rebar - 鋼筋計算\n直接對我說話，大腦會回答你！")
 }
 
 async def on_fetch(request, env):
@@ -29,13 +30,11 @@ async def on_fetch(request, env):
             chat_id = body["message"]["chat"]["id"]
             text = body["message"]["text"]
 
-            # 1. 處理帶參數的特殊指令（如 /add）
+            # 1. 處理帶參數的特殊指令
             if text.startswith("/add "):
                 await add_reminder(env, chat_id, text)
-
-# 👉 新增這一塊：把 /rebar 派發給鋼筋部門
             elif text.startswith("/rebar "):
-                await run_rebar_skill(env, chat_id, text)            
+                await run_rebar_skill(env, chat_id, text)
 
             # 2. 處理路由表裡的普通指令
             elif text in SKILLS_MAP:
@@ -44,6 +43,10 @@ async def on_fetch(request, env):
             # 3. 處理偵錯指令
             elif text == "/test_id":
                 await send_message(env.TELEGRAM_TOKEN, chat_id, f"👤 ID: `{chat_id}`\n🔑 Config ID: `{env.TELEGRAM_CHAT_ID}`")
+                
+            # 🌟 4. 重頭戲：如果不是任何指令，就丟給 Gemini 大腦處理！
+            else:
+                await chat_with_llm(env, chat_id, text)
 
         return Response.new("OK")
     return Response.new("Running...")

@@ -6,7 +6,7 @@ from common import send_message
 from registry import GET_TOOLS_LIST, AGENT_TOOLS_REGISTRY
 
 async def chat_with_llm(env, chat_id, user_text):
-    api_url = "https://ai.hk01.eu.cc/v1/chat/completions"
+    api_url = "https://api.hk02.eu.cc/v1/chat/completions"
     api_key = env.GEMINI_API_KEY 
     model = "gemini-2.5-flash"  
     
